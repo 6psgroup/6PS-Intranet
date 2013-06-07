@@ -1,0 +1,21 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>Auth_Yubico PHP class</title><link rel="stylesheet" href="./docbook-xsl.css" type="text/css" /><meta name="generator" content="DocBook XSL Stylesheets V1.73.2" /></head><body><div class="article" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title"><a id="id2446633"></a>Auth_Yubico PHP class</h2></div></div><hr /></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="section"><a href="#_status_and_roadmap">Status and Roadmap</a></span></dt><dt><span class="section"><a href="#_installation">Installation</a></span></dt><dt><span class="section"><a href="#_example_usage">Example usage</a></span></dt><dt><span class="section"><a href="#_feedback">Feedback</a></span></dt></dl></div><p>The Yubico authentication PHP class provides an easy way to integrate
+the Yubikey into your existing PHP-based user authentication
+infrastructure.  Installation is simple using PEAR.</p><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="_status_and_roadmap"></a>Status and Roadmap</h2></div></div></div><p>The module is working.  Several items have been identified that needs
+to be implemented before it can reach production quality.  Search for
+TODO in Yubico.php.</p><p>The development community is co-ordinated via Google Code:</p><pre class="literallayout">http://code.google.com/p/php-yubico/</pre><p>The license for php-yubico is the revised BSD license.  See the file
+COPYING for more information.</p></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="_installation"></a>Installation</h2></div></div></div><p>Make sure your PHP installation supports curl, and that you have
+installed PEAR.  Install the component by invoking:</p><pre class="literallayout">wget http://www.yubico.com/files/Auth_Yubico-1.2.tgz
+pear install Auth_Yubico-1.2.tgz</pre></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="_example_usage"></a>Example usage</h2></div></div></div><p>The class is easy to use, in an HTML *.php file you invoke it as
+follows:</p><pre class="literallayout">&lt;?php
+require_once 'Auth/Yubico.php';
+$otp = "ccbbddeertkrctjkkcglfndnlihhnvekchkcctif";</pre><pre class="literallayout">$yubi = &amp;new Auth_Yubico('42'); # 42 is your id
+$auth = $yubi-&gt;verify($otp);
+if (PEAR::isError($auth)) {
+   print "&lt;p&gt;Authentication failed: " . $auth-&gt;getMessage();
+   print "&lt;p&gt;Debug output from server: " . $yubi-&gt;getLastResponse();
+} else {
+   print "&lt;p&gt;You are authenticated!";
+}
+?&gt;</pre></div><div class="section" lang="en" xml:lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a id="_feedback"></a>Feedback</h2></div></div></div><p>If you want to discuss anything related to the Yubico PHP class,
+please contact <a class="ulink" href="mailto:simon@yubico.com" target="_top">Simon Josefsson</a>.</p></div></div></body></html>
