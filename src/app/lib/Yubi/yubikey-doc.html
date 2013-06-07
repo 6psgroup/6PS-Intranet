@@ -1,0 +1,197 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 TRANSITIONAL//EN">
+<html>
+
+	<head>
+		<title>Documentation for Yubikey PHP Library</title>
+		<style type='text/css'>
+			body { padding: .5in; }
+			h1 { border-bottom: 2px solid black; }
+			h2 { font-family: sans-serif; border-bottom: 1px solid #555; color: #555; padding-top: 16pt;}
+			h3 { font-family: Courier New, Courier; border-top: 1px dotted #555; border-bottom: 1px dotted #555;padding-top: 3px; padding-bottom: 3px; }
+			h4 { margin-bottom: 0px; }
+			ul { margin: 0px; margin-bottom: 6pt;}
+		</style>
+	</head>
+	<body>
+	<h1>Documentation for Yubikey PHP Library</h2>
+
+	<h2>Introduction</h2>
+	<p>
+	This project aims to provide two things:
+		<ol><li>An easy way to decode Yubikey one-time-passwords and</li>
+		<li>an extendable framework for integrating Yubikeys into your own PHP projects.</li>
+		</ol>
+	</p>
+	<p>
+	Let's talk about the first goal: easy decoding of one-time-passwords (OTP).  There are two utility classes, 
+	<a href='#ModHexClass'>ModHex</a> and <a href='#YubikeyClass'>Yubikey</a>.  ModHex translates strings to
+	and from Yubico's ModHex.  You can <a href='http://forum.yubico.com/viewtopic.php?f=6&t=96'>read this forum
+	post</a> to find out more about MODified HEXadecimal.  The Yubikey class decodes OTPs into an easy-to-use
+	array of useful values.  The most important method is <a href='#Yubikey-Decode'>Yubikey::Decode</a>.
+	</p>
+	<p>
+	The second goal, an authentication framework, is provided by an abstract class that you can extend to fit
+	your needs.  The class is <a href='#YubiAuthenticatorClass'>YubiAuthenticator</a>, and it has two supporting
+	classes, <a href='#AuthDataClass'>AuthData</a> and <a href='#AuthResultClass'>AuthResult</a>.  Here's how
+	they work together:
+	</p>
+	<h4>About the AuthData Class</h4>
+	<p><em>Summary: Holds the data from previously successful authentication for authenticate() to compare against newest OTP.</em></p>
+	<p>In order for Yubikey authentication to work well, a server must keep track of users' OTPs to prevent
+	replay attacks and spoofing.  The AuthData object will let you supply previous OTP info to the authenticate()
+	method.  Before you call authenticate(), you populate an AuthData object with the data you want to verify.
+	For example, if you merely want to check for the presence of the correct Yubikey, you only have to verify the
+	private ID.  You would do it like so:
+	<pre>
+   $otp = // get OTP from a Yubikey;
+   $ad = new AuthData();
+   $auth = new YubiAuthenticator();
+   $ad->private_id = "fd9d228fa3";
+   if ( $auth->authenticate($otp, $ad) == AuthResult::SUCCESS ) {
+      print "We logged in!";
+   }</pre>
+	The authenticate() method takes care of matching the OTP's private ID with the one you pulled out of a database
+	and assigned to $ad->private_id.</p>
+	<p>You can skip checking certain values such as private ID, counter, or timestamp.  Just set their values in
+	AuthData to AuthData::SKIP_CHECK. Subclassing AuthData is possible too, and very likely required if you're
+	going to be using usernames as well as Yubikeys.  See the <code>sql-auth.php</code> sample for more details.
+	</p>
+	
+	<h4>About the AuthResult Class</h4>
+	<p><em>Summary: Class that defines the values returned by YubiAuthenticator::authenticate().  Will be AuthResult::SUCCESS if validation checks succeed.</em></p>
+	<p>AuthResult is fairly simple, it defines several constants that will be returned by the authenticate() method of YubiAuthenticator.</p>
+	<ul>
+		<li><code>AuthResult::SUCCESS</code> - this is the value we hope to see.</li>
+		<li><code>AuthResult::FAILED_PUBLIC_ID</code> - the public ID of the OTP and AuthData->public_id did not match.</li>
+		<li><code>AuthResult::FAILED_PRIVATE_ID</code> - the private ID of the OTP and AuthData->private_id did not match.</li>
+		<li><code>AuthResult::FAILED_COUNTER</code> - the counter of the OTP isn't greater than AuthData->counter.</li>
+		<li><code>AuthResult::FAILED_TIMESTAMP</code> - the timestamp is outside of acceptable bounds when compared to AuthData->timestamp and AuthData->server_timestamp.</li>
+		<li><code>AuthResult::FAILED_DECODE</code> - the OTP did not decode correctly (the call to Yubikey::Decode failed).</li>
+		<li><code>AuthResult::FAILED_DATA_UPDATE</code> - call to <code>updateAuthData()</code> failed.</li>
+	</ul>
+	<p>You can use the failure results to help debug problems or provide users with a useful error message.</p>
+	
+	<h4>About the YubiAuthenticator Class</h4>
+	The heart and soul of the system, it provides two core method: <a href='#YubiAuthenticator-authenticate'>authenticate()</a> and
+	<a href='#YubiAuthenticator-updateAuthData'>updateAuthData()</a>.  YubiAuthenticator must be subclassed so that <code>updateAuthData</code>
+	is customized to your needs, but you do not need to override <code>authentivate()</code>.  The authenticate() method performs all the standard 
+	authentication - decryption, public ID, private ID, counter increments, and timestamp validation.  The method takes two parameters
+	<code>$otp</code> and <code>$authdata</code>.  The <code>$otp</code> is a one-time-password from a Yubikey.  The <code>$authdata</code>
+	contains the data from the last-known OTP, as well as the AES key for decrypting the OTP.  This AuthData object will also
+	be passed from the authenticate() to the updateAuthData() method to help update your data store correctly.</p>
+	
+	Everyone must implement the <code>updateAuthData</code> method.  This is so it is customized to work with your data store, whether it is
+	a MySQL database, a flat CSV file, an INI file, SQLite, a PAM system, etc.
+	The <code>updateAuthData()</code> method takes four parameters: <code>$newCounter, $newTimestamp, $newServerStamp,</code> and <code>$oldAuthData</code>.
+	The first two parameters are from <code>authenticate()'s</code> OTP counter and timestamp.  The third parameter is the current server time stamp,
+	which is obtained via PHP's <code>time()</code> function.  The updateAuthData function needs to return true if the backend data store was
+	successfully updated, and false if there was a problem.  The AuthData object is useful if you subclassed it to hold additional login credentials
+	like a username.  That way your updateAuthData() code can set the correct details, for example:
+<pre>
+   class SQLAuthData extends AuthData {
+      var $username;
+   }
+
+   class SQLAuthenticator extends YubiAuthenticator {
+      protected function updateAuthData($newCounter, $newTimestamp, $newServerStamp, $oldAuthData) {
+         // Execute query:
+         // UPDATE users SET ctr='$newCounter', tstp='$newTimestamp', srvtstp='$newServerStamp' WHERE user='$username';
+      }
+   }</pre>
+	<strong>Note:</strong> <code>updateAuthData</code> is called directly from <code>authenticate()</code>.  The return value of <code>updateAuthData</code>
+	is checked, and if it is false then the entire authentication process is considered a failure and <code>authenticate()</code> returns
+	<code>AuthResult::FAILED_DATA_UPDATE</code>.  This is because of the nature of the Yubikey - for full effect you have to keep track of the last OTP.
+	If, for any reason, the data store fails to update, you don't want the authorization process to succeed.  If you want to use the key as static
+	passwords, simply implement your <code>updateAuthData</code> to always return true, such as
+<pre>class MyStaticAuthenticator extends YubiAuthenticator {
+   protected function updateAuthData($newCounter, $newTimestamp, $newServerStamp, $oldAuthData) {
+      return true;
+   }	
+}</pre>
+
+	<h2>Conclusion</h2>
+	<p>I'm not the best documentation writer, so please look at the sqlite implementation for an example of the things I wrote above.  Comments, criticism,
+	and code are welcome.  If someone would help with extended counter validation, more complex timestamp processing, and a really clean way of
+	decoding the hexadecimal OTP, I would be thankful.</p>
+	
+	<h2>Links</h2>
+	<ul>
+	<li><a href='http://forum.yubico.com/'>Yubico Forums</a> - wonderful tool for collaboration.</li>
+	<li><a href='http://forum.yubico.com/viewtopic.php?f=6&t=103'>Yubikey Processing Cookbook</a> - Jakob's step-by-step algorithm for using the Yubikey OTP.</li>
+	<li><a href='http://forum.yubico.com/viewtopic.php?f=6&t=96'>What/Why ModHex?</a> - more information about the ModHex encoding system.</li>
+	</ul>
+
+
+	<p style='margin-top: 1in; text-align: right; font-size: smaller; font-family: sans-serif; border-top: 4px solid gray; background-color: #ddd; padding: 4px;' >Class Reference</p>
+<!-- Begin Class References -->
+
+	<h2><a name='ModHexClass'></a>ModHex Class</h2>
+	<p>This is a utility class and has two static methods that convert text to and from Yubico's ModHex.</p>
+	<h3><a name='ModHex-Encode'></a>ModHex::Encode($src)</h3>
+	Encodes a given string into ModHex.
+	<h4>Parameters</h4>
+		<ul><li><code>$src</code> is the string to convert to ModHex</li></ul>
+	<h4>Returns:</h4>
+		<ul><li>The encoded string</li></ul>
+	<h3><a name='ModHex-Decode'></a>ModHex::Decode($src)</h3>
+	Decodes a given string into plain text.
+	<h4>Parameters</h4>
+		<ul><li><code>$src</code> is the ModHex string to convert to plain text</li></ul>
+	<h4>Returns</h4>
+		<ul><li>The decoded string, or...</li><li>FALSE if the length of $src is odd, or there are invalid characters in $src.</li></ul>
+		
+	<h2>Yubikey Class</h2>
+	This class does the basic processing of a ModHex-encoded one-time-password into an array of useful values.
+	For the most part you can get away with just using the Decode() method.
+	<h3>Yubikey::Decode($otp, $key)</h3>
+	<p>Decodes a given one-time-password.  The OTP can come straight from the Yubikey (ModHex encoded and
+	AES encrypted).
+	</p>
+	<h4>Parameters</h4>
+		<ul>
+		<li><code>$otp</code> is a Yubikey-generated one-time-password you want to decode.</li>
+		<li><code>$key</code> is the AES key used to decrypt the OTP's data.</li>
+		</ul>
+	<h4>Returns</h4>
+		Let's deal with failures first...
+		<ul>
+		<li><code>Yubikey::ERROR_TOO_SHORT</code> is returned if the length of the $OTP is too short (less than <code>$OTP_STRING_LENGTH</code>,
+		    which is currently 32).
+		</li>
+		<li><code>Yubikey::ERROR_MODHEX_FAILED</code> is returned if there is an error when ModHex-decoding the token.</li>
+		<li><code>Yubikey::ERROR_BAD_CRC</code> is returned when the CRC check fails.</li>
+		<li>Upon <strong>success</strong>, <code>Yubikey::Decode</code> returns an array containing the following keys:
+			<ul>
+			<li><code>["public_id"]</code>: the Yubikey's public ID (<em>ModHex string</em>).</li>
+			<li><code>["token"]</code>: the raw token.  You can use this for your own OTP processing and for testing. (<em>hex string</em>)</li>
+			<li><code>["private_id"]</code>: the Yubikey's private ID. (<em>hex string</em>)</li>
+			<li><code>["counter"]</code>: the usage counter. (<em>integer</em>)</li>
+			<li><code>["timestamp"]</code>: the timestamp. (<em>integer</em>)</li>
+			<li><code>["random"]</code>: the random data added to each OTP. (<em>integer</em>)</li>
+			<li><code>["crc"]</code>: the CRC value of the token. (<em>integer</em>)</li>
+			</ul>
+			</li>
+		</ul>
+		<h4>Checking the Results</h4>
+			A simple way to check if an OTP decoded correctly is to use <code>is_array()</code> on the returned value, like this:<br />
+			<code>$myDecodedToken = Yubikey::Decode($theUsersOTP, $theUsersKey);<br />
+			if ( is_array($myDecodedToken) ) {<br />
+			&nbsp;&nbsp;&nbsp;print "Decoded correctly\n";<br />
+			&nbsp;&nbsp;&nbsp;print_r($myDecodedToken);<br />
+			} else {<br />
+			&nbsp;&nbsp;&nbsp;print "Error # $myDecodedToken\n";<br />
+			}</code>
+		
+	<h3><a href='Yubikey-GetPublicId'></a> Yubikey::GetPublicId($otp)</h3>
+	<p>When you authenticate a user you can use their Yubikey's public ID (the non-changing part of the OTP) as
+	a way to look up user details such as their Yubikey AES key or the private ID.  Use <code>GetPublicId</code> to extract just
+	the public ID portion of the OTP.</p>
+	<p><em>Note: you do <strong>not</strong> have to know the user's AES key
+	to get their Yubikey's public ID.</em></p>
+	<h4>Parameters</h4>
+		<ul><li><code>$otp</code> is the one-time-password you want extract the ID from.</li></ul>
+	<h4>Returns</h4>
+		<ul><li>The public ID (in its original, Modhexed state).</li></ul>
+	<h1>TODO: Finish documenting authentication classes</h1>
+	</body>
+</html>

@@ -1,0 +1,17 @@
+CREATE TABLE IF NOT EXISTS `yubikeytable` (
+  `publicID` varchar(40) NOT NULL,
+  `AES_key` varchar(32) NOT NULL,
+  `secretID` varchar(12) NOT NULL,
+  `counter` int(11) NOT NULL,
+  `counter_session` int(11) NOT NULL,
+  `tstamp` int(11) NOT NULL,
+  `lastEdited` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+  PRIMARY KEY  (`publicID`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--
+-- Data dump for tabellen `yubikeytable`
+--
+
+INSERT INTO `yubikeytable` (`publicID`, `AES_key`, `secretID`, `counter`, `counter_session`, `tstamp`, `lastEdited`) VALUES
+('abcdefghijkl', '00112233445566778899aabbccddeeff', '0123456789ab', 0, 14, 0, '0000-00-00 00:00:00');
